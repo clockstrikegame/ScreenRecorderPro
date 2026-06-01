@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Screen Recorder Pro</string>
+    <string name="start_recording">Start Recording</string>
+    <string name="stop_recording">Stop</string>
+    <string name="status_ready">● Ready</string>
+    <string name="status_recording">● Recording</string>
+    <string name="settings_title">Settings</string>
+    <string name="notification_recording">Recording in progress…</string>
+    <string name="channel_name">Recording Service</string>
+    <string name="channel_description">Screen recording notification</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="recording_started">Recording started</string>
+    <string name="recording_stopped">Recording saved</string>
+    <string name="free">free</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="grant">Grant</string>
+    <string name="overlay_permission_title">Overlay Permission</string>
+    <string name="overlay_permission_message">Required to show controls while recording.</string>
+    <string name="help_title">How to Use</string>
+    <string name="help_message">1. Tap Start Recording\n2. Allow screen capture\n3. Record your screen\n4. Pull down notification and tap Stop\n\nFiles saved to:\nMovies/ScreenRecorderPro/</string>
+    <string name="pref_category_video">Video Settings</string>
+    <string name="pref_category_audio">Audio Settings</string>
+    <string name="pref_resolution">Resolution</string>
+    <string name="pref_fps">Frame Rate</string>
+    <string name="pref_bitrate">Bitrate</string>
+    <string name="pref_record_audio">Record Microphone</string>
+    <string name="pref_record_audio_summary">Include audio from microphone</string>
+    <string name="card_settings">Settings</string>
+    <string name="card_files">Recordings</string>
+    <string name="card_help">Help</string>
+    <string name="resolution_label">Resolution</string>
+    <string name="fps_label">Frame Rate</string>
+    <string name="bitrate_label">Bitrate</string>
+    <string name="storage_label">Storage</string>
+
+    <string-array name="resolution_entries">
+        <item>480p</item>
+        <item>720p HD</item>
+        <item>1080p Full HD</item>
+        <item>1440p QHD</item>
+        <item>4K UHD</item>
+        <item>Native</item>
+    </string-array>
+    <string-array name="resolution_values">
+        <item>480p</item>
+        <item>720p</item>
+        <item>1080p</item>
+        <item>1440p</item>
+        <item>4K</item>
+        <item>Native</item>
+    </string-array>
+
+    <string-array name="fps_entries">
+        <item>24 FPS</item>
+        <item>30 FPS</item>
+        <item>60 FPS</item>
+    </string-array>
+    <string-array name="fps_values">
+        <item>24</item>
+        <item>30</item>
+        <item>60</item>
+    </string-array>
+
+    <string-array name="bitrate_entries">
+        <item>2 Mbps</item>
+        <item>4 Mbps</item>
+        <item>8 Mbps</item>
+        <item>12 Mbps</item>
+        <item>16 Mbps</item>
+        <item>20 Mbps</item>
+    </string-array>
+    <string-array name="bitrate_values">
+        <item>2000000</item>
+        <item>4000000</item>
+        <item>8000000</item>
+        <item>12000000</item>
+        <item>16000000</item>
+        <item>20000000</item>
+    </string-array>
+</resources>
