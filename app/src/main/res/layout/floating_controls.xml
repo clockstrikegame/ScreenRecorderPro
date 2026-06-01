@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="4dp">
+
+    <!-- مؤشر التسجيل + زر الإيقاف -->
+    <FrameLayout
+        android:layout_width="64dp"
+        android:layout_height="64dp">
+
+        <!-- الدائرة الخارجية النابضة -->
+        <View
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:background="@drawable/circle_pulse"
+            android:layout_gravity="center"/>
+
+        <!-- زر الإيقاف -->
+        <ImageButton
+            android:id="@+id/fab_stop"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_gravity="center"
+            android:background="@drawable/circle_stop_btn"
+            android:src="@drawable/ic_stop"
+            android:padding="14dp"
+            android:elevation="8dp"
+            android:contentDescription="Stop"/>
+
+    </FrameLayout>
+
+    <!-- نص STOP -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="STOP"
+        android:textColor="#FFFFFF"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.15"
+        android:layout_marginTop="4dp"
+        android:shadowColor="#000000"
+        android:shadowDx="1"
+        android:shadowDy="1"
+        android:shadowRadius="3"/>
+
+</LinearLayout>
