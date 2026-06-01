@@ -25,30 +25,30 @@ import java.util.Locale;
 
 public class RecordingService extends Service {
 
-    public static final String ACTION_START           = "ACTION_START";
-    public static final String ACTION_STOP            = "ACTION_STOP";
-    public static final String EXTRA_RESULT_CODE      = "EXTRA_RESULT_CODE";
-    public static final String EXTRA_DATA             = "EXTRA_DATA";
-    public static final String EXTRA_RESOLUTION       = "EXTRA_RESOLUTION";
-    public static final String EXTRA_FPS              = "EXTRA_FPS";
-    public static final String EXTRA_BITRATE          = "EXTRA_BITRATE";
-    public static final String EXTRA_AUDIO            = "EXTRA_AUDIO";
+    public static final String ACTION_START      = "ACTION_START";
+    public static final String ACTION_STOP       = "ACTION_STOP";
+    public static final String EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE";
+    public static final String EXTRA_DATA        = "EXTRA_DATA";
+    public static final String EXTRA_RESOLUTION  = "EXTRA_RESOLUTION";
+    public static final String EXTRA_FPS         = "EXTRA_FPS";
+    public static final String EXTRA_BITRATE     = "EXTRA_BITRATE";
+    public static final String EXTRA_AUDIO       = "EXTRA_AUDIO";
 
-    private static final String CHANNEL_ID   = "RecordingChannel";
-    private static final int    NOTIFICATION_ID = 1;
+    private static final String CHANNEL_ID      = "RecordingChannel";
+    private static final int    NOTIFICATION_ID  = 1;
 
     public static volatile boolean isRunning = false;
 
-    private MediaProjection  mediaProjection;
-    private MediaRecorder    mediaRecorder;
-    private VirtualDisplay   virtualDisplay;
+    private MediaProjection mediaProjection;
+    private MediaRecorder   mediaRecorder;
+    private VirtualDisplay  virtualDisplay;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) return START_NOT_STICKY;
 
         if (ACTION_START.equals(intent.getAction())) {
-            createNotificationChannel();
+            createChannel();
             startForeground(NOTIFICATION_ID, buildNotification());
             startRecording(
                     intent.getIntExtra(EXTRA_RESULT_CODE, -1),
@@ -64,24 +64,23 @@ public class RecordingService extends Service {
         return START_STICKY;
     }
 
-    private void startRecording(int resultCode, Intent data,
-            String resolution, String fps, String bitrate, boolean audio) {
+    private void startRecording(int code, Intent data,
+            String res, String fps, String bitrate, boolean audio) {
 
         MediaProjectionManager pm =
                 (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-        mediaProjection = pm.getMediaProjection(resultCode, data);
+        mediaProjection = pm.getMediaProjection(code, data);
 
-        DisplayMetrics metrics = new DisplayMetrics();
+        DisplayMetrics m = new DisplayMetrics();
         ((WindowManager) getSystemService(WINDOW_SERVICE))
-                .getDefaultDisplay().getRealMetrics(metrics);
+                .getDefaultDisplay().getRealMetrics(m);
 
-        int[] dims     = getResolutionDims(resolution, metrics);
-        int   width    = dims[0];
-        int   height   = dims[1];
-        int   density  = metrics.densityDpi;
-        int   fpsVal   = Integer.parseInt(fps);
-        int   bpsVal   = Integer.parseInt(bitrate);
-        String outFile = buildOutputPath();
+        int[] d    = dims(res, m);
+        int   w    = d[0], h = d[1];
+        int   den  = m.densityDpi;
+        int   fpsV = Integer.parseInt(fps  == null ? "30"       : fps);
+        int   bpsV = Integer.parseInt(bitrate == null ? "8000000" : bitrate);
+        String out = outputPath();
 
         mediaRecorder = new MediaRecorder();
         if (audio) mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
@@ -93,16 +92,16 @@ public class RecordingService extends Service {
             mediaRecorder.setAudioEncodingBitRate(128000);
         }
         mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-        mediaRecorder.setVideoSize(width, height);
-        mediaRecorder.setVideoFrameRate(fpsVal);
-        mediaRecorder.setVideoEncodingBitRate(bpsVal);
-        mediaRecorder.setOutputFile(outFile);
+        mediaRecorder.setVideoSize(w, h);
+        mediaRecorder.setVideoFrameRate(fpsV);
+        mediaRecorder.setVideoEncodingBitRate(bpsV);
+        mediaRecorder.setOutputFile(out);
 
         try {
             mediaRecorder.prepare();
             mediaRecorder.start();
             virtualDisplay = mediaProjection.createVirtualDisplay(
-                    "ScreenRecorder", width, height, density,
+                    "SRP", w, h, den,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     mediaRecorder.getSurface(), null, null);
             isRunning = true;
@@ -120,7 +119,7 @@ public class RecordingService extends Service {
                 mediaRecorder.release();
                 mediaRecorder = null;
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception ignored) {}
 
         if (virtualDisplay  != null) { virtualDisplay.release();  virtualDisplay  = null; }
         if (mediaProjection != null) { mediaProjection.stop();    mediaProjection = null; }
@@ -129,8 +128,9 @@ public class RecordingService extends Service {
         stopSelf();
     }
 
-    private int[] getResolutionDims(String res, DisplayMetrics m) {
-        switch (res == null ? "" : res) {
+    private int[] dims(String r, DisplayMetrics m) {
+        if (r == null) return new int[]{m.widthPixels, m.heightPixels};
+        switch (r) {
             case "480p":  return new int[]{854,  480};
             case "720p":  return new int[]{1280, 720};
             case "1080p": return new int[]{1920, 1080};
@@ -140,41 +140,45 @@ public class RecordingService extends Service {
         }
     }
 
-    private String buildOutputPath() {
+    private String outputPath() {
         File dir = new File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-                "ScreenRecorderPro");
+                Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_MOVIES), "ScreenRecorderPro");
         if (!dir.exists()) dir.mkdirs();
-        String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String ts = new SimpleDateFormat("yyyyMMdd_HHmmss",
+                Locale.getDefault()).format(new Date());
         return new File(dir, "REC_" + ts + ".mp4").getAbsolutePath();
     }
 
     private Notification buildNotification() {
-        PendingIntent stopPI = PendingIntent.getService(this, 0,
-                new Intent(this, RecordingService.class).setAction(ACTION_STOP),
+        PendingIntent open = PendingIntent.getActivity(this, 0,
+                new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        PendingIntent openPI = PendingIntent.getActivity(this, 0,
-                new Intent(this, MainActivity.class),
+        PendingIntent stop = PendingIntent.getService(this, 1,
+                new Intent(this, RecordingService.class)
+                        .setAction(ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(getString(R.string.app_name))
                 .setContentText(getString(R.string.notification_recording))
                 .setSmallIcon(R.drawable.ic_record)
-                .setContentIntent(openPI)
-                .addAction(R.drawable.ic_stop, getString(R.string.stop_recording), stopPI)
+                .setContentIntent(open)
+                .addAction(R.drawable.ic_stop,
+                        getString(R.string.stop_recording), stop)
                 .setOngoing(true)
                 .build();
     }
 
-    private void createNotificationChannel() {
+    private void createChannel() {
         NotificationChannel ch = new NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.channel_name),
                 NotificationManager.IMPORTANCE_LOW);
-        getSystemService(NotificationManager.class).createNotificationChannel(ch);
+        getSystemService(NotificationManager.class)
+                .createNotificationChannel(ch);
     }
 
-    @Override public IBinder onBind(Intent intent) { return null; }
+    @Override public IBinder onBind(Intent i) { return null; }
 }
