@@ -30,7 +30,8 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:parentActivityName=".MainActivity"/>
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.ScreenRecorderPro.Settings"/>
 
         <activity
             android:name=".RecordingsActivity"
@@ -45,16 +46,6 @@
         <service
             android:name=".FloatingWindowService"
             android:exported="false"/>
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.provider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"/>
-        </provider>
 
     </application>
 
