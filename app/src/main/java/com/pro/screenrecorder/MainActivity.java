@@ -2,7 +2,10 @@ package com.pro.screenrecorder;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.projection.MediaProjectionManager;
@@ -29,37 +32,37 @@ import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int REQUEST_PERMISSIONS = 100;
+    private static final int REQ_PERMS = 100;
 
-    private MediaProjectionManager projectionManager;
-    private ActivityResultLauncher<Intent> screenCaptureLauncher;
-    private ActivityResultLauncher<Intent> overlayPermissionLauncher;
+    private MediaProjectionManager projMgr;
+    private ActivityResultLauncher<Intent> captureLauncher;
+    private ActivityResultLauncher<Intent> overlayLauncher;
 
     private MaterialButton btnRecord;
-    private TextView tvStatus;
-    private TextView tvResolution;
-    private TextView tvBitrate;
-    private TextView tvFps;
-    private TextView tvStorage;
-
+    private TextView tvStatus, tvResolution, tvFps, tvBitrate, tvStorage;
     private SharedPreferences prefs;
+
+    // استقبل إشارة التوقف لتحديث الواجهة
+    private final BroadcastReceiver stoppedReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context ctx, Intent i) {
+            runOnUiThread(() -> updateUI(false));
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        projectionManager = (MediaProjectionManager)
-                getSystemService(MEDIA_PROJECTION_SERVICE);
+        prefs  = PreferenceManager.getDefaultSharedPreferences(this);
+        projMgr = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
 
-        initViews();
+        bindViews();
         setupLaunchers();
-        updateStatsDisplay();
-        requestNotificationPermission();
+        askNotificationPerm();
     }
 
-    private void initViews() {
+    private void bindViews() {
         btnRecord    = findViewById(R.id.btn_record);
         tvStatus     = findViewById(R.id.tv_status);
         tvResolution = findViewById(R.id.tv_resolution);
@@ -67,200 +70,179 @@ public class MainActivity extends AppCompatActivity {
         tvBitrate    = findViewById(R.id.tv_bitrate);
         tvStorage    = findViewById(R.id.tv_storage);
 
-        MaterialCardView cardSettings = findViewById(R.id.card_settings);
-        MaterialCardView cardFiles    = findViewById(R.id.card_files);
-        MaterialCardView cardHelp     = findViewById(R.id.card_help);
-
         btnRecord.setOnClickListener(v -> {
-            if (!RecordingService.isRunning) {
-                startRecordingFlow();
-            } else {
-                stopRecording();
-            }
+            if (RecordingService.isRunning) stopEverything();
+            else startFlow();
         });
 
-        cardSettings.setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
+        MaterialCardView cSettings = findViewById(R.id.card_settings);
+        MaterialCardView cFiles    = findViewById(R.id.card_files);
+        MaterialCardView cHelp     = findViewById(R.id.card_help);
 
-        cardFiles.setOnClickListener(v -> openFolder());
-        cardHelp.setOnClickListener(v -> showHelp());
+        cSettings.setOnClickListener(v ->
+            startActivity(new Intent(this, SettingsActivity.class)));
+        cFiles.setOnClickListener(v ->
+            startActivity(new Intent(this, RecordingsActivity.class)));
+        cHelp.setOnClickListener(v -> showHelp());
     }
 
     private void setupLaunchers() {
-        screenCaptureLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK
-                            && result.getData() != null) {
-                        launchRecordingService(
-                                result.getResultCode(), result.getData());
-                    } else {
-                        toast(getString(R.string.permission_denied));
-                    }
-                });
+        captureLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            r -> {
+                if (r.getResultCode() == Activity.RESULT_OK && r.getData() != null)
+                    launchServices(r.getResultCode(), r.getData());
+                else
+                    toast(getString(R.string.permission_denied));
+            });
 
-        overlayPermissionLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (Settings.canDrawOverlays(this)) {
-                        checkAudioAndRecord();
-                    }
-                });
+        overlayLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            r -> { if (Settings.canDrawOverlays(this)) checkPermsAndRecord(); });
     }
 
-    private void startRecordingFlow() {
+    private void startFlow() {
         if (!Settings.canDrawOverlays(this)) {
             new MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.overlay_permission_title)
-                    .setMessage(R.string.overlay_permission_message)
-                    .setPositiveButton(R.string.grant, (d, w) -> {
-                        overlayPermissionLauncher.launch(
-                                new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:" + getPackageName())));
-                    })
-                    .setNegativeButton(R.string.cancel, null)
-                    .show();
+                .setTitle(R.string.overlay_permission_title)
+                .setMessage(R.string.overlay_permission_message)
+                .setPositiveButton(R.string.grant, (d, w) ->
+                    overlayLauncher.launch(new Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()))))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
             return;
         }
-        checkAudioAndRecord();
+        checkPermsAndRecord();
     }
 
-    private void checkAudioAndRecord() {
-        boolean needAudio = ContextCompat.checkSelfPermission(this,
-                Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+    private void checkPermsAndRecord() {
+        boolean noAudio = ContextCompat.checkSelfPermission(this,
+            Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+        boolean noStorage = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
+            && ContextCompat.checkSelfPermission(this,
+               Manifest.permission.WRITE_EXTERNAL_STORAGE)
+               != PackageManager.PERMISSION_GRANTED;
 
-        boolean needStorage = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
-                && ContextCompat.checkSelfPermission(this,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED;
-
-        if (needAudio || needStorage) {
-            String[] perms = needStorage
+        if (noAudio || noStorage) {
+            ActivityCompat.requestPermissions(this,
+                noStorage
                     ? new String[]{Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE}
-                    : new String[]{Manifest.permission.RECORD_AUDIO};
-            ActivityCompat.requestPermissions(this, perms, REQUEST_PERMISSIONS);
+                                   Manifest.permission.WRITE_EXTERNAL_STORAGE}
+                    : new String[]{Manifest.permission.RECORD_AUDIO},
+                REQ_PERMS);
         } else {
-            requestScreenCapture();
+            captureLauncher.launch(projMgr.createScreenCaptureIntent());
         }
     }
 
-    private void requestScreenCapture() {
-        screenCaptureLauncher.launch(
-                projectionManager.createScreenCaptureIntent());
-    }
-
-    private void launchRecordingService(int resultCode, Intent data) {
-        // شغّل خدمة التسجيل
-        Intent si = new Intent(this, RecordingService.class);
-        si.setAction(RecordingService.ACTION_START);
-        si.putExtra(RecordingService.EXTRA_RESULT_CODE, resultCode);
-        si.putExtra(RecordingService.EXTRA_DATA, data);
-        si.putExtra(RecordingService.EXTRA_RESOLUTION,
-                prefs.getString("resolution", "1080p"));
-        si.putExtra(RecordingService.EXTRA_FPS,
-                prefs.getString("fps", "30"));
-        si.putExtra(RecordingService.EXTRA_BITRATE,
-                prefs.getString("bitrate", "8000000"));
-        si.putExtra(RecordingService.EXTRA_AUDIO,
-                prefs.getBoolean("record_audio", true));
+    private void launchServices(int code, Intent data) {
+        // خدمة التسجيل
+        Intent si = new Intent(this, RecordingService.class)
+            .setAction(RecordingService.ACTION_START)
+            .putExtra(RecordingService.EXTRA_RESULT_CODE, code)
+            .putExtra(RecordingService.EXTRA_DATA, data)
+            .putExtra(RecordingService.EXTRA_RESOLUTION,
+                      prefs.getString("resolution", "1080p"))
+            .putExtra(RecordingService.EXTRA_FPS,
+                      prefs.getString("fps", "30"))
+            .putExtra(RecordingService.EXTRA_BITRATE,
+                      prefs.getString("bitrate", "8000000"))
+            .putExtra(RecordingService.EXTRA_AUDIO,
+                      prefs.getBoolean("record_audio", true));
         ContextCompat.startForegroundService(this, si);
 
-        // شغّل الزر العائم
-        Intent fi = new Intent(this, FloatingWindowService.class);
-        startService(fi);
+        // الزر العائم
+        startService(new Intent(this, FloatingWindowService.class));
 
-        // أخفِ التطبيق فوراً
+        updateUI(true);
         moveTaskToBack(true);
-
-        toast(getString(R.string.recording_started));
     }
 
-    private void stopRecording() {
-        Intent si = new Intent(this, RecordingService.class);
-        si.setAction(RecordingService.ACTION_STOP);
-        startService(si);
-
+    private void stopEverything() {
+        startService(new Intent(this, RecordingService.class)
+            .setAction(RecordingService.ACTION_STOP));
         stopService(new Intent(this, FloatingWindowService.class));
+        updateUI(false);
         toast(getString(R.string.recording_stopped));
-        updateRecordingUI(false);
     }
 
-    void updateRecordingUI(boolean recording) {
+    void updateUI(boolean recording) {
         if (recording) {
             btnRecord.setText(R.string.stop_recording);
             btnRecord.setIconResource(R.drawable.ic_stop);
+            btnRecord.setBackgroundTintList(
+                getColorStateList(R.color.accent_red));
             tvStatus.setText(R.string.status_recording);
             tvStatus.setTextColor(getColor(R.color.accent_red));
         } else {
             btnRecord.setText(R.string.start_recording);
             btnRecord.setIconResource(R.drawable.ic_record);
+            btnRecord.setBackgroundTintList(
+                getColorStateList(R.color.accent_purple));
             tvStatus.setText(R.string.status_ready);
             tvStatus.setTextColor(getColor(R.color.accent_green));
         }
+        refreshStats();
     }
 
-    private void updateStatsDisplay() {
-        String res     = prefs.getString("resolution", "1080p");
-        String fps     = prefs.getString("fps", "30");
-        int    bitrate = Integer.parseInt(
-                prefs.getString("bitrate", "8000000"));
+    private void refreshStats() {
+        String res  = prefs.getString("resolution", "1080p");
+        String fps  = prefs.getString("fps", "30");
+        int    bps  = Integer.parseInt(prefs.getString("bitrate", "8000000"));
 
         tvResolution.setText(res);
         tvFps.setText(fps + " FPS");
-        tvBitrate.setText((bitrate / 1_000_000) + " Mbps");
+        tvBitrate.setText((bps / 1_000_000) + " Mbps");
 
-        File path = Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_MOVIES);
-        long freeGb = path.getFreeSpace() / (1024L * 1024 * 1024);
-        tvStorage.setText(freeGb + " GB " + getString(R.string.free));
-    }
-
-    private void openFolder() {
-        File f = new File(
-                Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_MOVIES), "ScreenRecorderPro");
-        toast(f.getAbsolutePath());
+        File p = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_MOVIES);
+        long gb = p.getFreeSpace() / (1024L * 1024 * 1024);
+        tvStorage.setText(gb + " GB " + getString(R.string.free));
     }
 
     private void showHelp() {
         new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.help_title)
-                .setMessage(R.string.help_message)
-                .setPositiveButton(R.string.ok, null)
-                .show();
+            .setTitle(R.string.help_title)
+            .setMessage(R.string.help_message)
+            .setPositiveButton(R.string.ok, null)
+            .show();
     }
 
-    private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this,
-                    Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        200);
-            }
+    private void askNotificationPerm() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            && ContextCompat.checkSelfPermission(this,
+               Manifest.permission.POST_NOTIFICATIONS)
+               != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
         }
     }
 
-    private void toast(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    private void toast(String m) {
+        Toast.makeText(this, m, Toast.LENGTH_SHORT).show();
     }
 
-    @Override
-    protected void onResume() {
+    @Override protected void onResume() {
         super.onResume();
-        updateStatsDisplay();
-        updateRecordingUI(RecordingService.isRunning);
+        registerReceiver(stoppedReceiver,
+            new IntentFilter(RecordingService.ACTION_RECORDING_STOPPED));
+        updateUI(RecordingService.isRunning);
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        try { unregisterReceiver(stoppedReceiver); } catch (Exception ignored) {}
     }
 
     @Override
     public void onRequestPermissionsResult(int req,
-            String[] perms, int[] res) {
-        super.onRequestPermissionsResult(req, perms, res);
-        if (req == REQUEST_PERMISSIONS && res.length > 0
-                && res[0] == PackageManager.PERMISSION_GRANTED) {
-            requestScreenCapture();
+            String[] p, int[] r) {
+        super.onRequestPermissionsResult(req, p, r);
+        if (req == REQ_PERMS && r.length > 0
+            && r[0] == PackageManager.PERMISSION_GRANTED) {
+            captureLauncher.launch(projMgr.createScreenCaptureIntent());
         }
     }
 }
