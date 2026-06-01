@@ -37,6 +37,11 @@
             android:exported="false"
             android:foregroundServiceType="mediaProjection"/>
 
+        <!-- خدمة الزر العائم -->
+        <service
+            android:name=".FloatingWindowService"
+            android:exported="false"/>
+
     </application>
 
 </manifest>
