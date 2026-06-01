@@ -32,15 +32,29 @@
             android:exported="false"
             android:parentActivityName=".MainActivity"/>
 
+        <activity
+            android:name=".RecordingsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"/>
+
         <service
             android:name=".RecordingService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection"/>
 
-        <!-- خدمة الزر العائم -->
         <service
             android:name=".FloatingWindowService"
             android:exported="false"/>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
 
     </application>
 
