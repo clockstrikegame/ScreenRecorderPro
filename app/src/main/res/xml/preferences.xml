@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/pref_category_video">
+
+        <ListPreference
+            app:key="resolution"
+            app:title="@string/pref_resolution"
+            app:defaultValue="1080p"
+            app:entries="@array/resolution_entries"
+            app:entryValues="@array/resolution_values"
+            app:useSimpleSummaryProvider="true"/>
+
+        <ListPreference
+            app:key="fps"
+            app:title="@string/pref_fps"
+            app:defaultValue="30"
+            app:entries="@array/fps_entries"
+            app:entryValues="@array/fps_values"
+            app:useSimpleSummaryProvider="true"/>
+
+        <ListPreference
+            app:key="bitrate"
+            app:title="@string/pref_bitrate"
+            app:defaultValue="8000000"
+            app:entries="@array/bitrate_entries"
+            app:entryValues="@array/bitrate_values"
+            app:useSimpleSummaryProvider="true"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_audio">
+
+        <SwitchPreferenceCompat
+            app:key="record_audio"
+            app:title="@string/pref_record_audio"
+            app:summary="@string/pref_record_audio_summary"
+            app:defaultValue="true"/>
+
+    </PreferenceCategory>
+
+</PreferenceScreen>
