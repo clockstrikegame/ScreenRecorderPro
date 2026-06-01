@@ -2,10 +2,7 @@ package com.pro.screenrecorder;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.media.projection.MediaProjectionManager;
@@ -42,19 +39,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvStatus, tvResolution, tvFps, tvBitrate, tvStorage;
     private SharedPreferences prefs;
 
-    // استقبل إشارة التوقف لتحديث الواجهة
-    private final BroadcastReceiver stoppedReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context ctx, Intent i) {
-            runOnUiThread(() -> updateUI(false));
-        }
-    };
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        prefs  = PreferenceManager.getDefaultSharedPreferences(this);
+        prefs   = PreferenceManager.getDefaultSharedPreferences(this);
         projMgr = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
 
         bindViews();
@@ -81,8 +71,10 @@ public class MainActivity extends AppCompatActivity {
 
         cSettings.setOnClickListener(v ->
             startActivity(new Intent(this, SettingsActivity.class)));
+
         cFiles.setOnClickListener(v ->
             startActivity(new Intent(this, RecordingsActivity.class)));
+
         cHelp.setOnClickListener(v -> showHelp());
     }
 
@@ -90,15 +82,21 @@ public class MainActivity extends AppCompatActivity {
         captureLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             r -> {
-                if (r.getResultCode() == Activity.RESULT_OK && r.getData() != null)
+                if (r.getResultCode() == Activity.RESULT_OK
+                        && r.getData() != null) {
                     launchServices(r.getResultCode(), r.getData());
-                else
+                } else {
                     toast(getString(R.string.permission_denied));
+                }
             });
 
         overlayLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
-            r -> { if (Settings.canDrawOverlays(this)) checkPermsAndRecord(); });
+            r -> {
+                if (Settings.canDrawOverlays(this)) {
+                    checkPermsAndRecord();
+                }
+            });
     }
 
     private void startFlow() {
@@ -119,7 +117,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void checkPermsAndRecord() {
         boolean noAudio = ContextCompat.checkSelfPermission(this,
-            Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED;
+            Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED;
+
         boolean noStorage = Build.VERSION.SDK_INT <= Build.VERSION_CODES.P
             && ContextCompat.checkSelfPermission(this,
                Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -128,8 +128,9 @@ public class MainActivity extends AppCompatActivity {
         if (noAudio || noStorage) {
             ActivityCompat.requestPermissions(this,
                 noStorage
-                    ? new String[]{Manifest.permission.RECORD_AUDIO,
-                                   Manifest.permission.WRITE_EXTERNAL_STORAGE}
+                    ? new String[]{
+                        Manifest.permission.RECORD_AUDIO,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE}
                     : new String[]{Manifest.permission.RECORD_AUDIO},
                 REQ_PERMS);
         } else {
@@ -138,22 +139,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void launchServices(int code, Intent data) {
-        // خدمة التسجيل
         Intent si = new Intent(this, RecordingService.class)
             .setAction(RecordingService.ACTION_START)
             .putExtra(RecordingService.EXTRA_RESULT_CODE, code)
             .putExtra(RecordingService.EXTRA_DATA, data)
             .putExtra(RecordingService.EXTRA_RESOLUTION,
-                      prefs.getString("resolution", "1080p"))
+                prefs.getString("resolution", "1080p"))
             .putExtra(RecordingService.EXTRA_FPS,
-                      prefs.getString("fps", "30"))
+                prefs.getString("fps", "30"))
             .putExtra(RecordingService.EXTRA_BITRATE,
-                      prefs.getString("bitrate", "8000000"))
+                prefs.getString("bitrate", "8000000"))
             .putExtra(RecordingService.EXTRA_AUDIO,
-                      prefs.getBoolean("record_audio", true));
-        ContextCompat.startForegroundService(this, si);
+                prefs.getBoolean("record_audio", true));
 
-        // الزر العائم
+        ContextCompat.startForegroundService(this, si);
         startService(new Intent(this, FloatingWindowService.class));
 
         updateUI(true);
@@ -168,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
         toast(getString(R.string.recording_stopped));
     }
 
-    void updateUI(boolean recording) {
+    private void updateUI(boolean recording) {
         if (recording) {
             btnRecord.setText(R.string.stop_recording);
             btnRecord.setIconResource(R.drawable.ic_stop);
@@ -188,18 +187,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshStats() {
-        String res  = prefs.getString("resolution", "1080p");
-        String fps  = prefs.getString("fps", "30");
-        int    bps  = Integer.parseInt(prefs.getString("bitrate", "8000000"));
+        String res = prefs.getString("resolution", "1080p");
+        String fps = prefs.getString("fps", "30");
+        int    bps = Integer.parseInt(
+            prefs.getString("bitrate", "8000000"));
 
         tvResolution.setText(res);
         tvFps.setText(fps + " FPS");
         tvBitrate.setText((bps / 1_000_000) + " Mbps");
 
-        File p = Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_MOVIES);
-        long gb = p.getFreeSpace() / (1024L * 1024 * 1024);
-        tvStorage.setText(gb + " GB " + getString(R.string.free));
+        try {
+            File p  = Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_MOVIES);
+            long gb = p.getFreeSpace() / (1024L * 1024 * 1024);
+            tvStorage.setText(gb + " GB " + getString(R.string.free));
+        } catch (Exception e) {
+            tvStorage.setText("-- GB");
+        }
     }
 
     private void showHelp() {
@@ -216,7 +220,8 @@ public class MainActivity extends AppCompatActivity {
                Manifest.permission.POST_NOTIFICATIONS)
                != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.POST_NOTIFICATIONS}, 200);
+                new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                200);
         }
     }
 
@@ -224,16 +229,10 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, m, Toast.LENGTH_SHORT).show();
     }
 
-    @Override protected void onResume() {
+    @Override
+    protected void onResume() {
         super.onResume();
-        registerReceiver(stoppedReceiver,
-            new IntentFilter(RecordingService.ACTION_RECORDING_STOPPED));
         updateUI(RecordingService.isRunning);
-    }
-
-    @Override protected void onPause() {
-        super.onPause();
-        try { unregisterReceiver(stoppedReceiver); } catch (Exception ignored) {}
     }
 
     @Override
